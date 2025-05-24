@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Switch, TouchableOpacity, Image } from 'react-native';
-import { NavigationProp } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
+import { NavigationProp } from '@react-navigation/native';
+import React, { useEffect, useState } from 'react';
+import { Image, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 interface ToucanSettingsProps {
@@ -38,6 +38,7 @@ const ToucanSettings: React.FC<ToucanSettingsProps> = ({ navigation }) => {
     setToucanEnabled(value);
     try {
       await AsyncStorage.setItem('toucanGuideEnabled', value ? 'true' : 'false');
+      console.log('Toucan guide setting saved:', value);
     } catch (error) {
       console.error('Error saving settings:', error);
     }

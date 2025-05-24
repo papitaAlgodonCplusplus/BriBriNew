@@ -1,52 +1,74 @@
-import React, { useState, useEffect, useRef } from 'react';
-import {Image} from "expo-image";
-import {
-  StyleSheet,
-  TouchableOpacity,
-  View,
-  Text,
-  Animated,
-  Easing
-} from 'react-native';
-import { NavigationProp } from '@react-navigation/native';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { NavigationProp, useFocusEffect } from '@react-navigation/native';
+import { Image } from "expo-image";
+import React, { useCallback, useRef, useState } from 'react';
+import {
+  Animated,
+  Easing,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 const HomePage = ({ navigation }: { navigation: NavigationProp<any> }) => {
   const [tutorialStep, setTutorialStep] = useState(0);
-  const [toucanEnabled, setToucanEnabled] = useState(true);
-  const [firstTimeUser, setFirstTimeUser] = useState(true);
+  const [toucanEnabled, setToucanEnabled] = useState<boolean | null>(null);
 
   const toucanPosition = useRef(new Animated.ValueXY({ x: wp('70%'), y: hp('15%') })).current;
   const toucanScale = useRef(new Animated.Value(0)).current;
   const bubbleOpacity = useRef(new Animated.Value(0)).current;
   const buttonHighlight = useRef(new Animated.Value(0)).current;
 
-  // Check if this is the first time the user opens the app
-  useEffect(() => {
-    const checkFirstTimeUser = async () => {
-      try {
-        const hasCompletedTutorial = await AsyncStorage.getItem('tutorialCompleted');
-        setFirstTimeUser(hasCompletedTutorial !== 'true');
-      } catch (error) {
-        console.error('Error checking tutorial status:', error);
-      }
-    };
+  // Use useFocusEffect to check settings every time the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      const checkToucanSettings = async () => {
+        try {
+          const value = await AsyncStorage.getItem('toucanGuideEnabled');
+          const enabled = value !== 'false';
+          const wasEnabled = toucanEnabled;
+          
+          setToucanEnabled(enabled);
+          
+          console.log('Toucan enabled:', enabled);
+          console.log('Was enabled:', wasEnabled);
+          
+          // Only start tutorial if:
+          // 1. Toucan is enabled
+          // 2. Tutorial is not already running (tutorialStep === 0)
+          // 3. Either this is the first load (wasEnabled === null) or toucan was just enabled
+          if (enabled && tutorialStep === 0 && (wasEnabled === null || (!wasEnabled && enabled))) {
+            console.log('Starting tutorial');
+            startTutorial();
+          }
+          
+          // If toucan was disabled, reset tutorial step
+          if (!enabled && tutorialStep > 0) {
+            setTutorialStep(0);
+            // Reset animations
+            bubbleOpacity.setValue(0);
+            buttonHighlight.setValue(0);
+            toucanScale.setValue(0);
+          }
+        } catch (error) {
+          console.error('Error checking tutorial status:', error);
+        }
+      };
 
-    checkFirstTimeUser();
-  }, []);
-
-  // Start the tutorial if it's the first time
-  useEffect(() => {
-    if (firstTimeUser) {
-      startTutorial();
-    }
-  }, [firstTimeUser]);
+      checkToucanSettings();
+    }, [tutorialStep, toucanEnabled]) // Dependencies to control when this runs
+  );
 
   const startTutorial = () => {
-    // Animate toucan entering the screen
+    // Reset all animations first
     toucanScale.setValue(0);
+    bubbleOpacity.setValue(0);
+    buttonHighlight.setValue(0);
+    
+    // Animate toucan entering the screen
     Animated.sequence([
       Animated.timing(toucanScale, {
         toValue: 1,
@@ -110,7 +132,37 @@ const HomePage = ({ navigation }: { navigation: NavigationProp<any> }) => {
           ),
         ]).start();
         break;
-      case 3: // Point to instructions/credits
+      case 3: // Point to settings button
+        Animated.parallel([
+          Animated.timing(toucanPosition, {
+            toValue: { x: wp('15%'), y: hp('15%') },
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(bubbleOpacity, {
+            toValue: 1,
+            duration: 500,
+            useNativeDriver: true,
+            delay: 800,
+          }),
+          Animated.loop(
+            Animated.sequence([
+              Animated.timing(buttonHighlight, {
+                toValue: 1,
+                duration: 800,
+                useNativeDriver: false,
+              }),
+              Animated.timing(buttonHighlight, {
+                toValue: 0.2,
+                duration: 800,
+                useNativeDriver: false,
+              }),
+            ]),
+            { iterations: 3 }
+          ),
+        ]).start();
+        break;
+      case 4: // Point to instructions/credits
         Animated.parallel([
           Animated.timing(toucanPosition, {
             toValue: { x: wp('50%'), y: hp('70%') },
@@ -125,7 +177,7 @@ const HomePage = ({ navigation }: { navigation: NavigationProp<any> }) => {
           }),
         ]).start();
         break;
-      case 4: // Final position and message
+      case 5: // Final position and message
         Animated.parallel([
           Animated.timing(toucanPosition, {
             toValue: { x: wp('70%'), y: hp('15%') },
@@ -153,25 +205,29 @@ const HomePage = ({ navigation }: { navigation: NavigationProp<any> }) => {
     navigation.navigate('LevelMapping');
   };
 
-  const handleInstrucciones = () => {
+  const handleSettings = () => {
     if (tutorialStep === 3) {
+      advanceTutorial();
+    }
+    navigation.navigate('ToucanSettings');
+  };
+
+  const handleInstrucciones = () => {
+    if (tutorialStep === 4) {
       advanceTutorial();
     }
     // Lógica para instrucciones
   };
 
   const handleCreditos = () => {
-    if (tutorialStep === 3) {
+    if (tutorialStep === 4) {
       advanceTutorial();
     }
     // Lógica para créditos
   };
 
-  // In homepage.tsx:
-
-  // In the handleToucanPress function
   const handleToucanPress = () => {
-    if (tutorialStep > 5) {
+    if (tutorialStep > 6) {
       setTutorialStep(0);
     }
     advanceTutorial();
@@ -185,8 +241,10 @@ const HomePage = ({ navigation }: { navigation: NavigationProp<any> }) => {
       case 2:
         return 'Presiona el botón "Jugar" para comenzar a aprender BriBri con diversos niveles interactivos.';
       case 3:
-        return 'Aquí abajo encontrarás las instrucciones del juego y los créditos de la aplicación.';
+        return 'Si quieres activar o desactivar mi ayuda, puedes usar el botón de configuración aquí arriba.';
       case 4:
+        return 'Aquí abajo encontrarás las instrucciones del juego y los créditos de la aplicación.';
+      case 5:
         return '¡Estaré aquí para ayudarte durante tu aprendizaje! Tócame si necesitas ayuda. ¡Vamos a aprender BriBri juntos!';
       default:
         return '';
@@ -199,6 +257,16 @@ const HomePage = ({ navigation }: { navigation: NavigationProp<any> }) => {
     outputRange: ['rgba(255,255,0,0)', 'rgba(255,255,0,0.5)']
   });
 
+  const settingsButtonHighlight = buttonHighlight.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['rgba(255,255,0,0)', 'rgba(255,255,0,0.5)']
+  });
+
+  const bottomButtonsHighlight = buttonHighlight.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['rgba(255,255,0,0)', 'rgba(255,255,0,0.3)']
+  });
+
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.container}>
@@ -209,8 +277,26 @@ const HomePage = ({ navigation }: { navigation: NavigationProp<any> }) => {
           resizeMode="stretch"
         />
 
+        {/* Settings Button */}
+        <TouchableOpacity onPress={handleSettings} style={styles.settingsButton}>
+          {/* Settings button highlight during tutorial */}
+          {tutorialStep === 3 && (
+            <Animated.View
+              style={[
+                styles.settingsButtonHighlight,
+                { backgroundColor: settingsButtonHighlight }
+              ]}
+            />
+          )}
+          <Image
+            source={require('@/assets/images/toucan_idle.png')}
+            style={styles.settingsIcon}
+            resizeMode="contain"
+          />
+        </TouchableOpacity>
+        
         {/* Toucan Guide with animated position */}
-        {(firstTimeUser || toucanEnabled) && (
+        {(toucanEnabled === true) && (
           <Animated.View
             style={[
               styles.toucanContainer,
@@ -228,7 +314,7 @@ const HomePage = ({ navigation }: { navigation: NavigationProp<any> }) => {
               { opacity: bubbleOpacity }
             ]}>
               <Text style={styles.speechText}>{getTutorialMessage()}</Text>
-              {tutorialStep > 0 && tutorialStep < 5 && (
+              {tutorialStep > 0 && tutorialStep < 6 && (
                 <Text style={styles.tapToContinue}>Tócame para continuar</Text>
               )}
             </Animated.View>
@@ -266,11 +352,11 @@ const HomePage = ({ navigation }: { navigation: NavigationProp<any> }) => {
         </TouchableOpacity>
 
         {/* Highlight for bottom buttons during tutorial */}
-        {tutorialStep === 3 && (
+        {tutorialStep === 4 && (
           <Animated.View
             style={[
               styles.bottomButtonsHighlight,
-              { opacity: buttonHighlight }
+              { backgroundColor: bottomButtonsHighlight }
             ]}
           />
         )}
@@ -324,6 +410,26 @@ const styles = StyleSheet.create({
   buttonImage: {
     width: wp('27%'),
     height: hp('37%'),
+  },
+  // Settings Button Styles
+  settingsButton: {
+    position: 'absolute',
+    top: hp('5%'),
+    left: wp('5%'),
+    zIndex: 6,
+  },
+  settingsIcon: {
+    width: wp('12%'),
+    height: hp('12%'),
+  },
+  settingsButtonHighlight: {
+    position: 'absolute',
+    top: -wp('1%'),
+    left: -wp('1%'),
+    width: wp('14%'),
+    height: hp('14%'),
+    borderRadius: wp('7%'),
+    zIndex: 5,
   },
   bottomContainer: {
     position: 'absolute',
@@ -401,7 +507,6 @@ const styles = StyleSheet.create({
     right: hp('5%'),
     width: wp('20%'),
     height: hp('30%'),
-    backgroundColor: 'rgba(255,255,0,0.3)',
     borderRadius: 15,
     zIndex: 4,
   },
