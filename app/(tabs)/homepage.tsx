@@ -3,8 +3,12 @@ import { NavigationProp, useFocusEffect } from '@react-navigation/native';
 import { Image } from "expo-image";
 import React, { useCallback, useRef, useState } from 'react';
 import {
+  Alert,
   Animated,
   Easing,
+  Linking,
+  Modal,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -16,6 +20,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 const HomePage = ({ navigation }: { navigation: NavigationProp<any> }) => {
   const [tutorialStep, setTutorialStep] = useState(0);
   const [toucanEnabled, setToucanEnabled] = useState<boolean | null>(null);
+  const [showPDFModal, setShowPDFModal] = useState(false);
 
   const toucanPosition = useRef(new Animated.ValueXY({ x: wp('70%'), y: hp('15%') })).current;
   const toucanScale = useRef(new Animated.Value(0)).current;
@@ -30,12 +35,12 @@ const HomePage = ({ navigation }: { navigation: NavigationProp<any> }) => {
           const value = await AsyncStorage.getItem('toucanGuideEnabled');
           const enabled = value !== 'false';
           const wasEnabled = toucanEnabled;
-          
+
           setToucanEnabled(enabled);
-          
+
           console.log('Toucan enabled:', enabled);
           console.log('Was enabled:', wasEnabled);
-          
+
           // Only start tutorial if:
           // 1. Toucan is enabled
           // 2. Tutorial is not already running (tutorialStep === 0)
@@ -44,7 +49,7 @@ const HomePage = ({ navigation }: { navigation: NavigationProp<any> }) => {
             console.log('Starting tutorial');
             startTutorial();
           }
-          
+
           // If toucan was disabled, reset tutorial step
           if (!enabled && tutorialStep > 0) {
             setTutorialStep(0);
@@ -59,7 +64,7 @@ const HomePage = ({ navigation }: { navigation: NavigationProp<any> }) => {
       };
 
       checkToucanSettings();
-    }, [tutorialStep, toucanEnabled]) // Dependencies to control when this runs
+    }, [tutorialStep, toucanEnabled])
   );
 
   const startTutorial = () => {
@@ -67,7 +72,7 @@ const HomePage = ({ navigation }: { navigation: NavigationProp<any> }) => {
     toucanScale.setValue(0);
     bubbleOpacity.setValue(0);
     buttonHighlight.setValue(0);
-    
+
     // Animate toucan entering the screen
     Animated.sequence([
       Animated.timing(toucanScale, {
@@ -162,7 +167,7 @@ const HomePage = ({ navigation }: { navigation: NavigationProp<any> }) => {
           ),
         ]).start();
         break;
-      case 4: // Point to instructions/credits
+      case 4: // Point to instructions/credits/manual
         Animated.parallel([
           Animated.timing(toucanPosition, {
             toValue: { x: wp('50%'), y: hp('70%') },
@@ -216,14 +221,41 @@ const HomePage = ({ navigation }: { navigation: NavigationProp<any> }) => {
     if (tutorialStep === 4) {
       advanceTutorial();
     }
-    // Lógica para instrucciones
+    // Show instructions alert or navigate to instructions screen
+    Alert.alert(
+      'Instrucciones',
+      'Selecciona un modo de aprendizaje, luego elige un nivel. Empareja las palabras con las imágenes correctas para completar cada nivel.',
+      [{ text: 'Entendido', style: 'default' }]
+    );
   };
 
   const handleCreditos = () => {
     if (tutorialStep === 4) {
       advanceTutorial();
     }
-    // Lógica para créditos
+    // Show credits alert or navigate to credits screen
+    Alert.alert(
+      'Créditos',
+      'Desarrollado para el aprendizaje de la lengua BriBri.\n\nBasado en el Diccionario de la Casa Tradicional BriBri de la Universidad de Costa Rica.',
+      [{ text: 'Cerrar', style: 'default' }]
+    );
+  };
+
+  const openLink = async (url: string) => {
+    // Open the provided URL in the default browser
+    const supported = await Linking.canOpenURL(url);
+    if (supported) {
+      Linking.openURL(url);
+    } else {
+      Alert.alert(`No se puede abrir el enlace: ${url}`);
+    }
+  }
+
+  const handleManualPreview = () => {
+    if (tutorialStep === 4) {
+      advanceTutorial();
+    }
+    setShowPDFModal(true);
   };
 
   const handleToucanPress = () => {
@@ -243,7 +275,7 @@ const HomePage = ({ navigation }: { navigation: NavigationProp<any> }) => {
       case 3:
         return 'Si quieres activar o desactivar mi ayuda, puedes usar el botón de configuración aquí arriba.';
       case 4:
-        return 'Aquí abajo encontrarás las instrucciones del juego y los créditos de la aplicación.';
+        return 'Aquí abajo encontrarás las instrucciones del juego, los créditos y el manual original de BriBri.';
       case 5:
         return '¡Estaré aquí para ayudarte durante tu aprendizaje! Tócame si necesitas ayuda. ¡Vamos a aprender BriBri juntos!';
       default:
@@ -277,6 +309,11 @@ const HomePage = ({ navigation }: { navigation: NavigationProp<any> }) => {
           resizeMode="stretch"
         />
 
+        {/* Manual Button */}
+        <TouchableOpacity onPress={handleManualPreview} style={styles.manualButton}>
+          <Text style={styles.manualButtonText}>📖</Text>
+        </TouchableOpacity>
+
         {/* Settings Button */}
         <TouchableOpacity onPress={handleSettings} style={styles.settingsButton}>
           {/* Settings button highlight during tutorial */}
@@ -294,7 +331,7 @@ const HomePage = ({ navigation }: { navigation: NavigationProp<any> }) => {
             resizeMode="contain"
           />
         </TouchableOpacity>
-        
+
         {/* Toucan Guide with animated position */}
         {(toucanEnabled === true) && (
           <Animated.View
@@ -386,6 +423,58 @@ const HomePage = ({ navigation }: { navigation: NavigationProp<any> }) => {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* PDF Preview Modal - Using local PDF with multiple fallback options */}
+        <Modal
+          visible={showPDFModal}
+          animationType="slide"
+          onRequestClose={() => setShowPDFModal(false)}
+        >
+          <SafeAreaView style={styles.modalContainer}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Manual Original BriBri</Text>
+              <TouchableOpacity
+                onPress={() => setShowPDFModal(false)}
+                style={styles.closeButton}
+              >
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* PDF Content - Try multiple approaches */}
+            <ScrollView style={styles.pdfContainer} contentContainerStyle={styles.pdfContent}>
+              <Text style={styles.pdfTitle}>Diccionario de la Casa Tradicional BriBri</Text>
+              <Text style={styles.pdfSubtitle}>Universidad de Costa Rica</Text>
+              
+              <View style={styles.pdfInfoContainer}>
+                <Text style={styles.pdfDescription}>
+                  Este manual contiene el vocabulario tradicional BriBri relacionado con la casa y sus elementos.
+                </Text>
+                
+                <TouchableOpacity 
+                  style={styles.downloadButton}
+                  onPress={() => {
+                    openLink('https://www.dipalicori.ucr.ac.cr/wp-content/uploads/Diccionario_casa_tradicional_bribri.pdf')
+                  }}
+                >
+                  <Text style={styles.downloadButtonText}>Ver Manual Completo</Text>
+                </TouchableOpacity>
+
+                <View style={styles.vocabularyPreview}>
+                  <Text style={styles.vocabularyTitle}>Vocabulario incluido en la app:</Text>
+                  <Text style={styles.vocabularyItem}>• alè - alero</Text>
+                  <Text style={styles.vocabularyItem}>• ñolö nkuö - caminito de la casa</Text>
+                  <Text style={styles.vocabularyItem}>• kapö - hamaca</Text>
+                  <Text style={styles.vocabularyItem}>• ñolö kibí - camino antes de la casa</Text>
+                  <Text style={styles.vocabularyItem}>• tso klowok - puerta</Text>
+                  <Text style={styles.vocabularyItem}>• shkéki - ventana</Text>
+                  <Text style={styles.vocabularyItem}>• y muchas más...</Text>
+                </View>
+              </View>
+            </ScrollView>
+          </SafeAreaView>
+        </Modal>
       </SafeAreaView>
     </SafeAreaProvider>
   );
@@ -417,6 +506,20 @@ const styles = StyleSheet.create({
     top: hp('5%'),
     left: wp('5%'),
     zIndex: 6,
+  },
+  manualButton: {
+    position: 'absolute',
+    top: hp('5%'),
+    right: wp('5%'),
+    zIndex: 6,
+    width: wp('12%'),
+    height: hp('12%'),
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  manualButtonText: {
+    fontSize: hp('6%'),
+    color: '#8B4513',
   },
   settingsIcon: {
     width: wp('12%'),
@@ -453,6 +556,8 @@ const styles = StyleSheet.create({
   },
   bottomButton: {
     marginHorizontal: wp('0.1%'),
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   buttonIcon: {
     width: wp('7%'),
@@ -509,6 +614,110 @@ const styles = StyleSheet.create({
     height: hp('30%'),
     borderRadius: 15,
     zIndex: 4,
+  },
+  // Modal Styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: wp('5%'),
+    paddingVertical: hp('2%'),
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    backgroundColor: '#f8f9fa',
+  },
+  modalTitle: {
+    fontSize: hp('2.5%'),
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  closeButton: {
+    padding: 10,
+    backgroundColor: '#e74c3c',
+    borderRadius: 20,
+    minWidth: 40,
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    color: 'white',
+    fontSize: hp('2.5%'),
+    fontWeight: 'bold',
+  },
+  pdfContainer: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+  },
+  pdfContent: {
+    padding: wp('5%'),
+    alignItems: 'center',
+  },
+  pdfTitle: {
+    fontSize: hp('3%'),
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: hp('1%'),
+    textAlign: 'center',
+  },
+  pdfSubtitle: {
+    fontSize: hp('2%'),
+    color: '#666',
+    marginBottom: hp('3%'),
+    textAlign: 'center',
+  },
+  pdfInfoContainer: {
+    width: '100%',
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: wp('5%'),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  pdfDescription: {
+    fontSize: hp('2%'),
+    color: '#555',
+    textAlign: 'center',
+    marginBottom: hp('3%'),
+    lineHeight: hp('2.5%'),
+  },
+  downloadButton: {
+    backgroundColor: '#3498db',
+    paddingVertical: hp('1.5%'),
+    paddingHorizontal: wp('8%'),
+    borderRadius: 25,
+    marginBottom: hp('3%'),
+    alignSelf: 'center',
+  },
+  downloadButtonText: {
+    color: 'white',
+    fontSize: hp('2%'),
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  vocabularyPreview: {
+    backgroundColor: '#f0f8ff',
+    padding: wp('4%'),
+    borderRadius: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#3498db',
+  },
+  vocabularyTitle: {
+    fontSize: hp('2.2%'),
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: hp('1%'),
+  },
+  vocabularyItem: {
+    fontSize: hp('1.8%'),
+    color: '#555',
+    marginBottom: hp('0.5%'),
+    paddingLeft: wp('2%'),
   },
 });
 
