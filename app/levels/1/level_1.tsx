@@ -1,28 +1,23 @@
-import { LogBox } from 'react-native';
+// app/levels/1/level_1.tsx - Updated with word tracking
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { NavigationProp } from '@react-navigation/native';
+import { Image } from "expo-image";
+import React, { useEffect, useRef, useState } from 'react';
+import {
+    Animated,
+    Easing, ImageBackground, LogBox, StyleSheet, Text, TouchableOpacity, View
+} from 'react-native';
+import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import BackButton from '../../misc/BackButton';
+import { getNextLevelId, getNextLevelScreenName, handleLevelCompletion } from '../../misc/levelCompletion';
+import NextButton from '../../misc/NextButton';
+import { LevelMode } from '../../misc/progress';
+import { recordWordAttempt } from '../../misc/wordPracticeTracker'; // Import tracking function
+import LevelCompleteModal from '../../screens/LevelCompleteModal';
 LogBox.ignoreLogs([
     'Draggable: Support for defaultProps will be removed'
 ]);
-import React, { useState, useEffect, useRef } from 'react';
-import { handleLevelCompletion, getNextLevelId, getNextLevelScreenName } from '../../misc/levelCompletion';
-import LevelCompleteModal from '../../screens/LevelCompleteModal';
-import { LevelMode } from '../../misc/progress';
-import { Image } from "expo-image";
-import {
-    View,
-    ImageBackground,
-    StyleSheet,
-    TouchableOpacity,
-    Text,
-    Animated,
-    Easing,
-} from 'react-native';
-import { Audio } from 'expo-av';
-import { NavigationProp } from '@react-navigation/native';
-import BackButton from '../../misc/BackButton';
-import NextButton from '../../misc/NextButton';
-import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Objetos visuales (imágenes)
 const visualObjects = [
@@ -136,6 +131,7 @@ const Level1 = ({ navigation }: { navigation: NavigationProp<any> }) => {
     const [selectedObject, setSelectedObject] = useState<string | null>(null);
     const [matches, setMatches] = useState<Record<string, string>>({});
     const [canContinue, setCanContinue] = useState(false);
+    const [attemptHistory, setAttemptHistory] = useState<Record<string, boolean>>({}); // Track incorrect attempts
 
     const LEVEL_ID = 1;
     const LEVEL_MODE = LevelMode.READ;
@@ -158,6 +154,16 @@ const Level1 = ({ navigation }: { navigation: NavigationProp<any> }) => {
     const toucanPosition = useRef(new Animated.ValueXY({ x: wp('70%'), y: hp('70%') })).current;
     const bubbleOpacity = useRef(new Animated.Value(0)).current;
     const elementHighlight = useRef(new Animated.Value(0)).current;
+
+    // Track word attempts for practice system
+    const trackWordAttempt = async (word: string, isCorrect: boolean) => {
+        try {
+            await recordWordAttempt(word, LEVEL_ID, LEVEL_MODE, isCorrect);
+            console.log(`Tracked attempt for "${word}": ${isCorrect ? 'correct' : 'incorrect'}`);
+        } catch (error) {
+            console.error('Error tracking word attempt:', error);
+        }
+    };
 
     // Load settings and setup toucan guide
     useEffect(() => {
@@ -377,13 +383,16 @@ const Level1 = ({ navigation }: { navigation: NavigationProp<any> }) => {
         }
     };
 
-    // Game logic for word selection
-    const handleWordPress = (item: { name: string }) => {
+    // Game logic for word selection - UPDATED WITH TRACKING
+    const handleWordPress = async (item: { name: string }) => {
         if (Object.values(matches).includes(item.name)) return;
 
         if (selectedObject) {
             const objectInfo = visualObjects.find(obj => obj.name === selectedObject);
             if (objectInfo && objectInfo.correctWord === item.name) {
+                // CORRECT match - track as successful attempt
+                await trackWordAttempt(item.name, true);
+                
                 setMatches(prev => ({
                     ...prev,
                     [selectedObject]: item.name
@@ -398,6 +407,9 @@ const Level1 = ({ navigation }: { navigation: NavigationProp<any> }) => {
                     advanceTutorial();
                 }
             } else {
+                // INCORRECT match - track as failed attempt
+                await trackWordAttempt(item.name, false);
+                
                 setSelectedWord(selectedWord === item.name ? null : item.name);
             }
         } else {
@@ -405,8 +417,8 @@ const Level1 = ({ navigation }: { navigation: NavigationProp<any> }) => {
         }
     };
 
-    // Game logic for object selection
-    const handleObjectPress = (objectName: string) => {
+    // Game logic for object selection - UPDATED WITH TRACKING
+    const handleObjectPress = async (objectName: string) => {
         if (matches[objectName]) return;
         if (selectedObject === objectName) {
             setSelectedObject(null);
@@ -421,6 +433,9 @@ const Level1 = ({ navigation }: { navigation: NavigationProp<any> }) => {
         if (selectedWord) {
             const objectInfo = visualObjects.find(obj => obj.name === objectName);
             if (objectInfo && objectInfo.correctWord === selectedWord) {
+                // CORRECT match - track as successful attempt
+                await trackWordAttempt(selectedWord, true);
+                
                 setMatches(prev => ({
                     ...prev,
                     [objectName]: selectedWord
@@ -434,6 +449,9 @@ const Level1 = ({ navigation }: { navigation: NavigationProp<any> }) => {
                 if (tutorialStep === 3 && Object.keys(matches).length === 0) {
                     advanceTutorial();
                 }
+            } else {
+                // INCORRECT match - track as failed attempt
+                await trackWordAttempt(selectedWord, false);
             }
         }
     };

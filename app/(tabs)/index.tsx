@@ -1,36 +1,39 @@
-import React from 'react';
+// app/(tabs)/index.tsx - Updated with WordsPractice screen
 import { createStackNavigator } from '@react-navigation/stack';
-import HomePage from './homepage';
-import LevelMapping from './level_mapping';
-import Level1 from '../levels/1/level_1';
+import React from 'react';
 import Guide1 from '../levels/1/guide_1';
-import Level2 from '../levels/2/level_2';
+import Level1 from '../levels/1/level_1';
 import Guide2 from '../levels/2/guide_2';
+import Level2 from '../levels/2/level_2';
 import Guide3 from '../levels/3/guide_3';
 import Level3 from '../levels/3/level_3';
 import Guide4 from '../levels/4/guide_4';
 import Level4 from '../levels/4/level_4';
-import Level5 from '../levels/5/level_5';
 import Guide5 from '../levels/5/guide_5';
+import Level5 from '../levels/5/level_5';
 import Guide6 from '../levels/6/guide_6';
 import Level6 from '../levels/6/level_6';
 import Guide7 from '../levels/7/guide_7';
 import Level7 from '../levels/7/level_7';
+import WordsPractice from '../levels/practice/WordsPractice'; // Import the new practice screen
 import Guide1Listen from '../levels_listen/1/guide_1_listen';
 import Level1Listen from '../levels_listen/1/level_1_listen';
 import Guide2Listen from '../levels_listen/2/guide_2_listen';
 import Level2Listen from '../levels_listen/2/level_2_listen';
 import Guide3Listen from '../levels_listen/3/guide_3_listen';
 import Level3Listen from '../levels_listen/3/level_3_listen';
-import Level4Listen from '../levels_listen/4/level_4_listen';
 import Guide4Listen from '../levels_listen/4/guide_4_listen';
-import Level5Listen from '../levels_listen/5/level_5_listen';
+import Level4Listen from '../levels_listen/4/level_4_listen';
 import Guide5Listen from '../levels_listen/5/guide_5_listen';
-import Level6Listen from '../levels_listen/6/level_6_listen';
+import Level5Listen from '../levels_listen/5/level_5_listen';
 import Guide6Listen from '../levels_listen/6/guide_6_listen';
-import Level7Listen from '../levels_listen/7/level_7_listen';
+import Level6Listen from '../levels_listen/6/level_6_listen';
 import Guide7Listen from '../levels_listen/7/guide_7_listen';
+import Level7Listen from '../levels_listen/7/level_7_listen';
 import ToucanSettings from '../screens/ToucanSettings';
+import HomePage from './homepage';
+import LevelMapping from './level_mapping';
+
 const Stack = createStackNavigator();
 
 export default function App() {
@@ -49,6 +52,12 @@ export default function App() {
       <Stack.Screen
         name="LevelMapping"
         component={LevelMapping}
+        options={{ headerShown: false }}
+      />
+      {/* New WordsPractice Screen */}
+      <Stack.Screen
+        name="WordsPractice"
+        component={WordsPractice}
         options={{ headerShown: false }}
       />
       <Stack.Screen

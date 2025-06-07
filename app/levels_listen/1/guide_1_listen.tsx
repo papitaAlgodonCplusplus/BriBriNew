@@ -1,17 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { ImageBackground, StyleSheet, View, TouchableOpacity, Image } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import BackButton from '@/app/misc/BackButton';
 import NextButton from '@/app/misc/NextButton';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationProp } from '@react-navigation/native';
-import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { Audio } from 'expo-av';
+import React, { useEffect, useState } from 'react';
+import { Image, ImageBackground, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 const GuideListen = ({ navigation }: { navigation: NavigationProp<any> }) => {
   const bgImage = require('@/assets/images/guia1.jpeg');
 
   const [mode, setMode] = useState<'read' | 'listen' | null>(null);
+  const [playbackSpeed, setPlaybackSpeed] = useState<'normal' | 'slow'>('normal');
 
   useEffect(() => {
     const fetchMode = async () => {
@@ -19,6 +20,22 @@ const GuideListen = ({ navigation }: { navigation: NavigationProp<any> }) => {
       setMode(storedMode === 'read' || storedMode === 'listen' ? storedMode : 'listen');
     };
     fetchMode();
+  }, []);
+
+  // Load speed preference from storage
+  useEffect(() => {
+    const loadSpeedPreference = async () => {
+      try {
+        const savedSpeed = await AsyncStorage.getItem('audioPlaybackSpeed');
+        if (savedSpeed === 'slow' || savedSpeed === 'normal') {
+          setPlaybackSpeed(savedSpeed);
+        }
+      } catch (error) {
+        console.error('Error loading speed preference:', error);
+      }
+    };
+
+    loadSpeedPreference();
   }, []);
 
   // Draggable elements are used here only to retrieve the audio files.
@@ -47,9 +64,9 @@ const GuideListen = ({ navigation }: { navigation: NavigationProp<any> }) => {
 
   // Audio boxes positioned similarly to the visual objects in level_1.tsx
   const audioBoxesData = [
-    { 
-      id: 1, 
-      name: 'obj_ale', 
+    {
+      id: 1,
+      name: 'obj_ale',
       style: {
         position: 'absolute' as 'absolute',
         left: wp('24%'),
@@ -64,9 +81,9 @@ const GuideListen = ({ navigation }: { navigation: NavigationProp<any> }) => {
       },
       audioName: 'ale'
     },
-    { 
-      id: 2, 
-      name: 'obj_nolo_nkuo', 
+    {
+      id: 2,
+      name: 'obj_nolo_nkuo',
       style: {
         position: 'absolute' as 'absolute',
         left: wp('9%'),
@@ -81,9 +98,9 @@ const GuideListen = ({ navigation }: { navigation: NavigationProp<any> }) => {
       },
       audioName: 'nolo_nkuo'
     },
-    { 
-      id: 3, 
-      name: 'obj_kapo', 
+    {
+      id: 3,
+      name: 'obj_kapo',
       style: {
         position: 'absolute' as 'absolute',
         left: wp('53%'),
@@ -98,9 +115,9 @@ const GuideListen = ({ navigation }: { navigation: NavigationProp<any> }) => {
       },
       audioName: 'kapo'
     },
-    { 
-      id: 4, 
-      name: 'obj_nolo_kibi', 
+    {
+      id: 4,
+      name: 'obj_nolo_kibi',
       style: {
         position: 'absolute' as 'absolute',
         left: wp('42%'),
@@ -117,27 +134,75 @@ const GuideListen = ({ navigation }: { navigation: NavigationProp<any> }) => {
     }
   ];
 
-  // Function to play audio
+  // Function to play audio with speed control
   const playSound = async (audioName: string) => {
     const element = draggableElements.find(e => e.name === audioName);
     if (!element) return;
-    
+
     try {
       const { sound } = await Audio.Sound.createAsync(element.audio);
+
+      // Set playback rate based on speed setting
+      const rate = playbackSpeed === 'slow' ? 0.7 : 1.0;
+      await sound.setRateAsync(rate, true); // true preserves pitch
+
       await sound.playAsync();
+
+      // Clean up sound object after playback
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          sound.unloadAsync();
+        }
+      });
     } catch (error) {
       console.error('Error playing sound', error);
+    }
+  };
+
+  // Toggle playback speed function
+  const togglePlaybackSpeed = async () => {
+    const newSpeed = playbackSpeed === 'normal' ? 'slow' : 'normal';
+    setPlaybackSpeed(newSpeed);
+
+    try {
+      await AsyncStorage.setItem('audioPlaybackSpeed', newSpeed);
+    } catch (error) {
+      console.error('Error saving speed preference:', error);
     }
   };
 
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.container}>
-        <ImageBackground 
-          source={bgImage} 
+        <ImageBackground
+          source={bgImage}
           style={styles.bgImage}
           imageStyle={{ resizeMode: 'contain' }}
         >
+
+          {/* Speed Control Button */}
+          <TouchableOpacity
+            style={styles.speedButton}
+            onPress={togglePlaybackSpeed}
+          >
+            <View style={[
+              styles.speedButtonContent,
+              { backgroundColor: playbackSpeed === 'slow' ? '#4CAF50' : '#2196F3' }
+            ]}>
+              <Image
+                source={playbackSpeed === 'slow'
+                  ? require('@/assets/images/audio.png')  // You'll need to add this icon
+                  : require('@/assets/images/audio.png') // You'll need to add this icon
+                }
+                style={styles.speedIcon}
+                resizeMode="contain"
+              />
+              <Text style={styles.speedText}>
+                {playbackSpeed === 'slow' ? 'Lento' : 'Normal'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+
           {/* Audio boxes overlay on the background */}
           {audioBoxesData.map((box) => (
             <TouchableOpacity
@@ -149,11 +214,11 @@ const GuideListen = ({ navigation }: { navigation: NavigationProp<any> }) => {
             </TouchableOpacity>
           ))}
         </ImageBackground>
-        
+
         <View style={styles.buttonsBackContainer}>
           <BackButton navigation={navigation} />
         </View>
-        
+
         <View style={styles.buttonsNextContainer}>
           <NextButton navigation={navigation} nextName="Level1Listen" />
         </View>
@@ -169,6 +234,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   bgImage: {
+    zIndex: -1,
     position: 'absolute',
     alignSelf: 'center',
     width: wp('100%'),
@@ -187,6 +253,32 @@ const styles = StyleSheet.create({
   buttonsNextContainer: {
     top: hp('47.5%'),
     left: wp('1.2%'),
+  },
+  speedButton: {
+    position: 'absolute',
+    top: hp('35%'),
+    resizeMode: 'contain',
+    right: wp('10%'),
+    zIndex: 30,
+  },
+  speedButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: wp('3%'),
+    paddingVertical: hp('1%'),
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: 'white',
+  },
+  speedIcon: {
+    width: wp('4%'),
+    height: hp('4%'),
+    marginRight: wp('1%'),
+  },
+  speedText: {
+    color: 'white',
+    fontSize: hp('2%'),
+    fontWeight: 'bold',
   },
 });
 

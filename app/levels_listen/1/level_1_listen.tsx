@@ -1,20 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { NavigationProp } from '@react-navigation/native';
+import { Audio } from 'expo-av';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  ImageBackground,
-  Image,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
   Animated,
   Easing,
+  Image,
+  ImageBackground,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
-import { Audio } from 'expo-av';
-import { NavigationProp } from '@react-navigation/native';
+import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import BackButton from '../../misc/BackButton';
 import NextButton from '../../misc/NextButton';
-import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 // Audio elements with positions matching the visualObjects from level_1.tsx
 const dropZones = [
@@ -108,6 +109,7 @@ const Level1Listen = ({ navigation }: { navigation: NavigationProp<any> }) => {
   const [selectedAudio, setSelectedAudio] = useState<any>(null);
   const [matches, setMatches] = useState<Record<string, boolean>>({});
   const [canContinue, setCanContinue] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState<'normal' | 'slow'>('normal');
   const [animatedValues] = useState(() => 
     dropZones.reduce((acc, zone) => {
       acc[zone.name] = new Animated.Value(1);
@@ -115,12 +117,51 @@ const Level1Listen = ({ navigation }: { navigation: NavigationProp<any> }) => {
     }, {} as Record<string, Animated.Value>)
   );
 
+  // Load speed preference from storage
+  useEffect(() => {
+    const loadSpeedPreference = async () => {
+      try {
+        const savedSpeed = await AsyncStorage.getItem('audioPlaybackSpeed');
+        if (savedSpeed === 'slow' || savedSpeed === 'normal') {
+          setPlaybackSpeed(savedSpeed);
+        }
+      } catch (error) {
+        console.error('Error loading speed preference:', error);
+      }
+    };
+    
+    loadSpeedPreference();
+  }, []);
+
   const playSound = async (audio: any) => {
     try {
       const { sound } = await Audio.Sound.createAsync(audio);
+      
+      // Set playback rate based on speed setting
+      const rate = playbackSpeed === 'slow' ? 0.7 : 1.0;
+      await sound.setRateAsync(rate, true); // true preserves pitch
+      
       await sound.playAsync();
+      
+      // Clean up sound object after playback
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          sound.unloadAsync();
+        }
+      });
     } catch (error) {
       console.error('Error playing sound', error);
+    }
+  };
+
+  const togglePlaybackSpeed = async () => {
+    const newSpeed = playbackSpeed === 'normal' ? 'slow' : 'normal';
+    setPlaybackSpeed(newSpeed);
+    
+    try {
+      await AsyncStorage.setItem('audioPlaybackSpeed', newSpeed);
+    } catch (error) {
+      console.error('Error saving speed preference:', error);
     }
   };
 
@@ -208,6 +249,29 @@ const Level1Listen = ({ navigation }: { navigation: NavigationProp<any> }) => {
           <View style={styles.buttonsBackContainer}>
             <BackButton navigation={navigation} />
           </View>
+
+          {/* Speed Control Button */}
+          <TouchableOpacity
+            style={styles.speedButton}
+            onPress={togglePlaybackSpeed}
+          >
+            <View style={[
+              styles.speedButtonContent,
+              { backgroundColor: playbackSpeed === 'slow' ? '#4CAF50' : '#2196F3' }
+            ]}>
+              <Image
+                source={playbackSpeed === 'slow' 
+                  ? require('@/assets/images/audio.png')  // You'll need to add this icon
+                  : require('@/assets/images/audio.png') // You'll need to add this icon
+                }
+                style={styles.speedIcon}
+                resizeMode="contain"
+              />
+              <Text style={styles.speedText}>
+                {playbackSpeed === 'slow' ? 'Lento' : 'Normal'}
+              </Text>
+            </View>
+          </TouchableOpacity>
 
           {/* Next Button */}
           {canContinue && (
@@ -309,6 +373,31 @@ const styles = StyleSheet.create({
     bottom: hp('-0%'),
     right: wp('-6%'),
     zIndex: 1,
+  },
+  speedButton: {
+    position: 'absolute',
+    top: hp('5%'),
+    right: wp('5%'),
+    zIndex: 10,
+  },
+  speedButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: wp('3%'),
+    paddingVertical: hp('1%'),
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: 'white',
+  },
+  speedIcon: {
+    width: wp('4%'),
+    height: hp('4%'),
+    marginRight: wp('1%'),
+  },
+  speedText: {
+    color: 'white',
+    fontSize: hp('2%'),
+    fontWeight: 'bold',
   },
   buttonsContainer: {
     position: 'absolute',
